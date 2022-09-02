@@ -2,7 +2,11 @@
 import csv
 import numpy as np
 import h5py
-import gdal
+try:
+    from osgeo import gdal
+except ImportError:
+    import gdal
+import pygrib
 from osgeo import osr
 import datetime
 import tempfile
@@ -21,11 +25,12 @@ class Decoder(object):
 
         self.version = '0.3'
         self.product = None
-        self._product_list = ['H10', 'H12', 'H35', 'H34', 'H13']
+        self._product_list = ['H10','H11', 'H12', 'H35', 'H34', 'H13']
         self.last_update = "Log methodology has been removed"
         self.product_transformation_array = {
 
             "H13": [(-25.12500, 0.25, 0.0, 75.125, 0.0, -0.25), (201, 281), [75.000, -25.000], [25.000, 45.0000]],
+            "H11": [(-25.12500, 0.25, 0.0, 75.125, 0.0, -0.25), (201, 281), [75.000, -25.000], [25.000, 45.0000]],
             "H12": [(-25.00500, 0.01, 0.0, 75.005, 0.0, -0.01), (5000, 7000), [75.000, -25.000], [25.000, 45.0000]],
             "H35": [(-179.9950, 0.01, 0.0, 89.995, 0.0, -0.01), (8999, 35999), [89.99, -179.99], [0.0000, 179.999]],
             "H10": [(-25.02500, 0.05, 0.0, 75.025, 0.0, -0.05), (1001, 1401), [75.000, -25.000], [25.000, 45.0000]],
@@ -190,8 +195,10 @@ class Decoder(object):
             data_name = 'SC' # H34
         elif self.product in ['H12', 'H35']:
             data_name = 'FSC'
+        elif self.product in ['H11']:
+            data_name = 'Remotely sensed snow cover'
         elif self.product in ['H13']:
-            data_name = 'SWE'
+            data_name = 'Remotely sensed snow cover'
         else:
             err_txt = "No data name has been provided"
             # self.log_.error(err_txt)
@@ -204,11 +211,11 @@ class Decoder(object):
             ret_data = np.array(data)
             hf.close()
         elif input_extension == "grib2":
-            ds = gdal.Open(file_)
-            dd = ds.GetRasterBand(1)
-            ret_data = dd.ReadAsArray()
+            # ret_data = ret_data[0:self.product_transformation_array[self.product][1][0], 0:self.product_transformation_array[self.product][1][1]]
+            grbs=pygrib.open(file_)
+            grb=grbs.select(name=data_name)[0]
+            ret_data=grb.values
 
-            ret_data = ret_data[0:self.product_transformation_array[self.product][1][0], 0:self.product_transformation_array[self.product][1][1]]
         return ret_data
 
     def reporoject(self, file_, out_file, input_extension="hdf", extension="GTiff", boundingbox=None):
@@ -236,7 +243,7 @@ class Decoder(object):
             hsaf_data = csc_filtered_t
             del csc_filtered
             del csc_filtered_t
-        elif self.product in ['H12', 'H35', 'H13']:
+        elif self.product in ['H11','H12', 'H35', 'H13']:
             hsaf_data = self.get_data(file_, input_extension)
 
         self.convert_array_to_raster(hsaf_data, self.product_transformation_array[self.product],
@@ -254,6 +261,8 @@ if __name__ == '__main__':
     prod = 'h13'
     if prod == 'h10':
         process_path = './h10_data'
+    elif prod == 'h11':
+        process_path = './h11_data'
     elif prod == 'h13':
         process_path = './h13_data'
     else:

@@ -33,7 +33,7 @@ button = widgets.Button(description="Download")
 output = widgets.Output()
 
 w = widgets.Dropdown(
-    options=['h10', 'h13', 'h34'],
+    options=['h10', 'h11','h13', 'h34'],
     description='Product:',
     disabled=False,
 )
@@ -110,36 +110,88 @@ def read_config():
 
 def manipulate(data, product):
     if product == 'H13':
-        data = np.zeros((data.shape[0], data.shape[1]))
-#         for i in range(0, data.shape[0]):
-#             for j in range(0, data.shape[1]):
-#                 if data[i][j] < 0:
-#                     manipulated_data[i][j] = 0
-#                 else:
-#                     manipulated_data[i][j] = data[i][j]
-#             manipulated_data = manipulated_data.astype(int)
-        data = np.where(data == 0, 2, data)   # land - blue
-        data = np.where(data == -1, 1, data)  # Sea - black
-        data = np.where(data == -2, 0, data)  # noData - grey
-        min = 0
-        max = 255
-        data = np.where((data == 1) | (data == 2), data, ((data - min)/(max - min))*255)
+        # data = np.zeros((data.shape[0], data.shape[1]))
+        # for i in range(0, data.shape[0]):
+        #     for j in range(0, data.shape[1]):
+        #         if data[i][j] < 0:
+        #             manipulated_data[i][j] = 0
+        #         else:
+        #             manipulated_data[i][j] = data[i][j]
+        #     manipulated_data = manipulated_data.astype(int)
+        # data = np.where(data == 0, 2, data)   # land - blue
+        # data = np.where(data == -1, 1, data)  # Sea - black
+        # data = np.where(data == -2, 0, data)  # noData - grey
+        # min = 0
+        # max = 255
+        # data = np.where((data == 1) | (data == 2), data, ((data - min)/(max - min))*255)
+        water = data.astype(np.int) == -20
+        nodata = data.astype(np.int) == -10 # nodata value?
+        # cannot find the no data value now so this should work for now (not water, not land, not swe)
+        nodata = (np.rint(data).astype(np.int) < 0)*~water
+        data = np.where(nodata,0,data)
+        data = np.where(water,1,data)
+        min, max = 2, 255
+        data = np.where( water | nodata, data, min + (max-min)*data/255.)
+        data = data.astype(np.uint8)
     else:
         data = data
+    
+    # lack of min value as 0 breaks the colors
+    # this is probably due to pcolormesh
+    data [0,0] = 0
     return data
 
 
 def pal(product):
     if product == 'H10' or product == 'H34':
-        viridis = cm.get_cmap('Paired', 256)
-        newcolors = viridis(np.linspace(0, 1, 256))
-        newcolors[:40, :] = np.array([255 / 256, 255 / 256, 255 / 256, 1.])
-        newcolors[40:80, :] = np.array([0, 255 / 256, 255 / 256, 1.])
-        newcolors[80:165, :] = np.array([0, 150 / 256, 0, 1.])
-        newcolors[165:210, :] = np.array([0, 0, 256 / 256, 1.])
-        newcolors[210:250, :] = np.array([40 / 256, 40 / 256, 40 / 256, 1.])
-        newcolors[250:, :] = np.array([0, 0, 0, 1.])
+        cmap = cm.get_cmap('Paired', 256)
+        newcolors = cmap(np.linspace(0, 1, 256))
+        classes = ['Snow','Cloud','Bare Ground','Water','Dark','No Data']
+        values = [0,42,85,170,230,255]
+        colors = [
+            np.array([255 / 256, 255 / 256, 255 / 256, 1.]),
+            np.array([0, 255 / 256, 255 / 256, 1.]),
+            np.array([0, 150 / 256, 0, 1.]),
+            np.array([0, 0, 256 / 256, 1.]),
+            np.array([40 / 256, 40 / 256, 40 / 256, 1.]),
+            np.array([0, 0, 0, 1.])
+        ]
+        newcolors[:int((values[0]+values[1])/2)+1] = colors[0]
+        newcolors[int((values[-2]+values[-1])/2)+1:] = colors[-1]
+        for j in range(1,len(classes)-1):
+            newcolors[int((values[j-1]+values[j])/2)+1:int((values[j]+values[j+1])/2)+1] = colors[j]
         newcmp = ListedColormap(newcolors)
+        cmap = cm.get_cmap('jet',len(classes))
+        newcolors = cmap(np.linspace(0, 1, len(classes)))
+        for j, color in enumerate(colors):
+            newcolors[j] = color
+        newcbarcmp = ListedColormap(newcolors)
+
+    elif product == 'H11':
+        cmap = cm.get_cmap('Paired', 256)
+        newcolors = cmap(np.linspace(0, 1, 256))
+        classes = ['Dry Snow','Wet Snow','Cloud','Mountain','Bare Ground','Water','Dark','No Data']
+        values = [0,25,42,66,85,170,230,255]
+        colors = [
+            np.array([255 / 256, 255 / 256, 255 / 256, 1.]),
+            np.array([200 / 256, 200 / 256, 200 / 256, 1.]),
+            np.array([0, 255 / 256, 255 / 256, 1.]),
+            np.array([99 / 256, 33/256 , 33/256, 1.]),
+            np.array([0, 150 / 256, 0, 1.]),
+            np.array([0, 66 / 256, 132 / 256, 1.]),
+            np.array([40 / 256, 40 / 256, 40 / 256, 1.]),
+            np.array([0,0,0, 1.])
+        ]
+        newcolors[:int((values[0]+values[1])/2)+1] = colors[0]
+        newcolors[int((values[-2]+values[-1])/2)+1:] = colors[-1]
+        for j in range(1,len(classes)-1):
+            newcolors[int((values[j-1]+values[j])/2)+1:int((values[j]+values[j+1])/2)+1] = colors[j]
+        newcmp = ListedColormap(newcolors)
+        cmap = cm.get_cmap('jet',len(classes))
+        newcolors = cmap(np.linspace(0, 1, len(classes)))
+        for j, color in enumerate(colors):
+            newcolors[j] = color
+        newcbarcmp = ListedColormap(newcolors)
     else:
 #         h13_palette = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0),
 #                        (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0),
@@ -178,16 +230,26 @@ def pal(product):
 #                        (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0),
 #                        (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0), (127, 0, 0),
 #                        (127, 0, 0), (127, 0, 0)]
-        viridis = cm.get_cmap('jet', 256)
-        newcolors = viridis(np.linspace(0, 1, 256))
-        newcolors[2] = ([0. , 0.7 , 0.4, 1 ])
-        newcolors[1] = ([0. , 0. , 0., 1 ])
-        newcolors[0] = (192/255 , 192/255, 192/255, 1)
+        cmap = cm.get_cmap('jet', 256)
+        # spare 2 for nodata and water then jet starts
+        newcolors = cmap(
+            np.hstack((np.array([0.]*2),np.linspace(0, 1, 256-2)))
+            )
+        newcolors[1] = ([0. , 0. , 0., 1 ]) # water
+        newcolors[0] = (192/255 , 192/255, 192/255, 1)  #nodata
         newcmp = ListedColormap(newcolors)
-#         h13_palette = np.asarray(h13_palette) / 255.0
-#         newcmp = ListedColormap(h13_palette)
+        cmap = cm.get_cmap('jet', 256)
+        # spare 56 vals for nodata and water and then jet starts
+        newcolors = cmap(
+            np.hstack((np.array([0.]*56),np.linspace(0, 1, 256-56)))
+            )
+        newcolors[0:int(56/2)+1] = (192/255 , 192/255, 192/255, 1)
+        newcolors[int(56/2)+1:56+1] = (0,0,0, 1)
+        newcbarcmp = ListedColormap(newcolors)
+        # h13_palette = np.asarray(h13_palette) / 255.0
+        # newcmp = ListedColormap(h13_palette)
 
-    return newcmp
+    return newcmp, newcbarcmp
 
 # endregion
 

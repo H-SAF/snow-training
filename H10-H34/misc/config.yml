@@ -1,7 +1,7 @@
 date_interval:
-  end_date: '20220115'
-  start_date: '20220105'
+  end_date: '20220804'
+  start_date: '20220801'
 ext: H5
-product: h34
+product: h10
 run_flag: Downloaded Data
-selected_date: '20220115'
+selected_date: '20220804'
